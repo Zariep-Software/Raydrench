@@ -1,0 +1,28 @@
+{
+	"name": "raydrench",
+	"description": "Trenchbroom-style .map brush loader for raylib-d",
+	"targetType": "library",
+	"authors": [
+		"ItsZariep"
+	],
+	"copyright": "Copyright © 2026, ItsZariep",
+	"license": "LGPL-3.0-only",
+	"dependencies": {
+		"raylib-d": "~>6.0.1"
+	},
+	"libs": [
+		"raylib"
+	],
+	"sourcePaths": [
+		"source"
+	],
+	"buildTypes": {
+		"release": {
+			"buildOptions": [
+				"releaseMode",
+				"optimize",
+				"inline"
+			]
+		}
+	}
+}

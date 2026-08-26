@@ -1,0 +1,31 @@
+{
+	"name": "raydrench-example",
+	"description": "Example app consuming the raydrench library",
+	"authors": [
+		"ItsZariep"
+	],
+	"copyright": "Copyright © 2026, ItsZariep",
+	"license": "LGPL-3.0-only",
+	"dependencies": {
+		"raylib-d": "~>6.0.1",
+		"raydrench": {
+			"path": "../src"
+		}
+	},
+	"libs": [
+		"raylib"
+	],
+	"sourcePaths": [
+		"source"
+	],
+	"mainSourceFile": "source/app.d",
+	"buildTypes": {
+		"release": {
+			"buildOptions": [
+				"releaseMode",
+				"optimize",
+				"inline"
+			]
+		}
+	}
+}
