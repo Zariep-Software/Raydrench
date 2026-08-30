@@ -7,6 +7,7 @@ import core.stdc.stdlib : atoi, realloc;
 import raylib;
 
 import raydrench.brush;
+import raydrench.entity;
 import raydrench.transform;
 import raydrench.utils;
 
@@ -19,29 +20,40 @@ enum MAX_LINE_LEN = 1024;
 struct Scene
 {
 	int formatVersion;
-	Brush* brushes;
-	int brushCount;
-	int brushCapacity;
+
+	Entity* entities;
+	int entityCount;
+	int entityCapacity;
 
 	@nogc nothrow:
 
 	void reserve(int needed)
 	{
-		if (needed <= brushCapacity) return;
-		int newCap = brushCapacity == 0 ? 32 : brushCapacity * 2;
+		if (needed <= entityCapacity) return;
+		int newCap = entityCapacity == 0 ? 32 : entityCapacity * 2;
 		if (newCap < needed) newCap = needed;
-		brushes = cast(Brush*) realloc(brushes, newCap * Brush.sizeof);
-		foreach (i; brushCapacity .. newCap)
+		entities = cast(Entity*) realloc(entities, newCap * Entity.sizeof);
+		foreach (i; entityCapacity .. newCap)
 		{
-			brushes[i] = Brush.init;
+			entities[i] = Entity.init;
 		}
-		brushCapacity = newCap;
+		entityCapacity = newCap;
 	}
 
-	void add(Brush b)
+	Entity* add()
 	{
-		reserve(brushCount + 1);
-		brushes[brushCount++] = b;
+		reserve(entityCount + 1);
+		entities[entityCount] = Entity.init;
+		return &entities[entityCount++];
+	}
+
+	// Convenience: total brush count across every entity, for e.g.
+	// collision iteration that doesn't care which entity owns what.
+	int totalBrushCount() const
+	{
+		int n = 0;
+		foreach (i; 0 .. entityCount) n += entities[i].brushCount;
+		return n;
 	}
 }
 
@@ -102,8 +114,9 @@ private void finalizeBrush(ref Brush b)
 /*
 	loadMap
 	filename[const char*] filename under maps/, e.g. "test.map"
-	- parses a Valve220-format .map file into g_scene, then builds each
-		brush's polygons and collision planes
+	- parses a Valve220-format .map file into g_scene as a list of
+		Entity blocks (worldspawn included), each carrying its own
+		key/value pairs and the brushes nested inside its { }.
 */
 bool loadMap(const(char)* filename)
 {
@@ -122,7 +135,8 @@ bool loadMap(const(char)* filename)
 	char[MAX_LINE_LEN] lineBuf;
 	bool inEntity = false;
 	bool inBrush = false;
-	Brush current;
+	Entity* currentEntity = null;
+	Brush currentBrush;
 
 	while (fgets(lineBuf.ptr, MAX_LINE_LEN, file) !is null)
 	{
@@ -132,23 +146,50 @@ bool loadMap(const(char)* filename)
 
 		if (stringsEqual(t, "{"))
 		{
-			if (inEntity && !inBrush) { inBrush = true; current = Brush.init; }
-			else if (!inEntity) inEntity = true;
+			if (inEntity && !inBrush)
+			{
+				inBrush = true;
+				currentBrush = Brush.init;
+			}
+			else if (!inEntity)
+			{
+				inEntity = true;
+				currentEntity = g_scene.add();
+			}
 			continue;
 		}
 
 		if (stringsEqual(t, "}"))
 		{
-			if (inBrush) { g_scene.add(current); inBrush = false; }
-			else if (inEntity) inEntity = false;
+			if (inBrush)
+			{
+				finalizeBrush(currentBrush);
+				currentEntity.addBrush(currentBrush);
+				inBrush = false;
+			}
+			else if (inEntity)
+			{
+				// Transform entity origin from Z-up map space to Y-up render space
+				// to match the brush geometry (which is transformed in finalizeBrush)
+				currentEntity.origin = toRenderSpace(currentEntity.origin);
+				TraceLog(TraceLogLevel.LOG_INFO, "Entity '%s' origin (render space): %.2f %.2f %.2f",
+					currentEntity.classname.ptr,
+					currentEntity.origin.x, currentEntity.origin.y, currentEntity.origin.z);
+
+				inEntity = false;
+				currentEntity = null;
+			}
 			continue;
 		}
 
 		if (inEntity && !inBrush)
 		{
-			char[128] key, value;
-			if (sscanf(t, "\"%127[^\"]\" \"%127[^\"]\"", key.ptr, value.ptr) == 2)
+			char[MAX_KEY_LEN] key;
+			char[MAX_VALUE_LEN] value;
+			if (sscanf(t, "\"%31[^\"]\" \"%127[^\"]\"", key.ptr, value.ptr) == 2)
 			{
+				currentEntity.addPair(key.ptr, value.ptr);
+
 				if (stringsEqual(key.ptr, "mapversion"))
 				{
 					g_scene.formatVersion = atoi(value.ptr);
@@ -162,27 +203,22 @@ bool loadMap(const(char)* filename)
 		{
 			FaceDef f;
 			if (parseFaceLine(t, f))
-				current.addFace(f);
+				currentBrush.addFace(f);
 			else
 				printf("!!! Failed to parse brush face: %s\n", t);
 		}
 	}
 	fclose(file);
-	printf("Loaded %i brushes\n", g_scene.brushCount);
 
-	foreach (i; 0 .. g_scene.brushCount)
-	{
-		finalizeBrush(g_scene.brushes[i]);
-	}
-
+	printf("Loaded %i entities, %i brushes\n", g_scene.entityCount, g_scene.totalBrushCount);
 	return true;
 }
 
 void unloadMap()
 {
-	foreach (i; 0 .. g_scene.brushCount)
+	foreach (i; 0 .. g_scene.entityCount)
 	{
-		g_scene.brushes[i].free_();
+		g_scene.entities[i].free_();
 	}
-	g_scene.brushCount = 0;
+	g_scene.entityCount = 0;
 }

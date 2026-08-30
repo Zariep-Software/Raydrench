@@ -5,6 +5,7 @@ import raylib.raymath;
 
 import raydrench.maploader : g_scene;
 import raydrench.brush;
+import raydrench.entity;
 
 @nogc nothrow:
 
@@ -17,10 +18,16 @@ void resolvePlayerCollisions(Vector3* pos)
 	foreach (_; 0 .. RESOLUTION_PASSES)
 	{
 		bool anyPush = false;
-		foreach (i; 0 .. g_scene.brushCount)
+		foreach (ei; 0 .. g_scene.entityCount)
 		{
-			if (resolveAgainstBrush(&g_scene.brushes[i], pos))
-				anyPush = true;
+			Entity* e = &g_scene.entities[ei];
+			foreach (bi; 0 .. e.brushCount)
+			{
+				if (resolveAgainstBrush(&e.brushes[bi], pos))
+				{
+					anyPush = true;
+				}
+			}
 		}
 		if (!anyPush) break; // early out once the player has settled
 	}

@@ -1,0 +1,1 @@
+This is the game configuration Setup template for Trenchbroom, place it on your trenchbroom games folder

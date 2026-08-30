@@ -9,6 +9,7 @@ import raydrench.geometry : ConvexHull;
 import raydrench.maploader : g_scene;
 import raydrench.texcache;
 import raydrench.transform;
+import raydrench.entity;
 
 @nogc nothrow:
 
@@ -46,62 +47,71 @@ Vector2 projectUV(Vector3 point, const(FaceDef)* face)
 */
 void buildAllModels(float yawRadians = 0.0f)
 {
-	foreach (i; 0 .. g_scene.brushCount)
+	foreach (ei; 0 .. g_scene.entityCount)
 	{
-		Brush* b = &g_scene.brushes[i];
+		Entity* ent = &g_scene.entities[ei];
 
-		foreach (j; 0 .. b.faceCount)
+		foreach (i; 0 .. ent.brushCount)
 		{
-			ConvexHull* hull = &b.hulls[j];
-			if (hull.count < 3) continue;
+			Brush* b = &ent.brushes[i];
 
-			FaceDef* face = &b.faces[j];
-			Texture2D faceTexture = getTexture(face.textureName.ptr);
-
-			// A triangle fan of N points has exactly N-2 triangles.
-			int triCount = hull.count - 2;
-			if (triCount < 1) continue;
-
-			Mesh mesh;
-			memset(&mesh, 0, Mesh.sizeof);
-			mesh.triangleCount = triCount;
-			mesh.vertexCount = triCount * 3;
-			mesh.vertices  = cast(float*) MemAlloc(mesh.vertexCount * 3 * cast(int) float.sizeof);
-			mesh.texcoords = cast(float*) MemAlloc(mesh.vertexCount * 2 * cast(int) float.sizeof);
-
-			int idx = 0;
-
-			for (int k = 1; k < hull.count - 1; k++)
+			foreach (j; 0 .. b.faceCount)
 			{
-				// Reversed winding order (k+1, k, 0) to make them CCW
-				Vector3[3] tri = [
-					hull.verts[k + 1],
-					hull.verts[k],
-					hull.verts[0]
-				];
-				Vector2[3] uvs = [
-					projectUV(tri[0], face),
-					projectUV(tri[1], face),
-					projectUV(tri[2], face)
-				];
+				ConvexHull* hull = &b.hulls[j];
+				if (hull.count < 3) continue;
 
-				foreach (v; 0 .. 3)
+				FaceDef* face = &b.faces[j];
+				Texture2D faceTexture = getTexture(face.textureName.ptr);
+
+				int triCount = hull.count - 2;
+				if (triCount < 1) continue;
+
+				Mesh mesh;
+				memset(&mesh, 0, Mesh.sizeof);
+				mesh.triangleCount = triCount;
+				mesh.vertexCount = triCount * 3;
+				mesh.vertices  = cast(float*) MemAlloc(mesh.vertexCount * 3 * cast(int) float.sizeof);
+				mesh.texcoords = cast(float*) MemAlloc(mesh.vertexCount * 2 * cast(int) float.sizeof);
+
+				int idx = 0;
+
+				for (int k = 1; k < hull.count - 1; k++)
 				{
-					Vector3 renderPos = toRenderSpace(tri[v], WORLD_TO_RENDER_SCALE, yawRadians);
-					mesh.vertices[idx * 3 + 0] = renderPos.x;
-					mesh.vertices[idx * 3 + 1] = renderPos.y;
-					mesh.vertices[idx * 3 + 2] = renderPos.z;
-					mesh.texcoords[idx * 2 + 0] = uvs[v].x;
-					mesh.texcoords[idx * 2 + 1] = uvs[v].y;
-					idx++;
+					Vector3[3] tri = [
+						hull.verts[k + 1],
+						hull.verts[k],
+						hull.verts[0]
+					];
+					Vector2[3] uvs = [
+						projectUV(tri[0], face),
+						projectUV(tri[1], face),
+						projectUV(tri[2], face)
+					];
+
+					foreach (v; 0 .. 3)
+					{
+						Vector3 renderPos = toRenderSpace(tri[v], WORLD_TO_RENDER_SCALE, yawRadians);
+						mesh.vertices[idx * 3 + 0] = renderPos.x;
+						mesh.vertices[idx * 3 + 1] = renderPos.y;
+						mesh.vertices[idx * 3 + 2] = renderPos.z;
+						mesh.texcoords[idx * 2 + 0] = uvs[v].x;
+						mesh.texcoords[idx * 2 + 1] = uvs[v].y;
+						idx++;
+					}
 				}
+
+				UploadMesh(&mesh, false);
+				Model model = LoadModelFromMesh(mesh);
+				model.materials[0].maps[MaterialMapIndex.MATERIAL_MAP_ALBEDO].texture = faceTexture;
+
+				if (g_modelCount >= MAX_MODEL_SLOTS)
+				{
+					TraceLog(TraceLogLevel.LOG_WARNING, "Model slot limit reached, dropping face");
+					UnloadModel(model);
+					continue;
+				}
+				g_models[g_modelCount++] = model;
 			}
-
-			UploadMesh(&mesh, false);
-			Model model = LoadModelFromMesh(mesh);
-			model.materials[0].maps[MaterialMapIndex.MATERIAL_MAP_ALBEDO].texture = faceTexture;
-
-			g_models[g_modelCount++] = model;
 		}
 	}
 }

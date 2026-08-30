@@ -8,8 +8,16 @@ import raydrench.maploader;
 import raydrench.meshbuilder;
 import raydrench.collision;
 import raydrench.texcache;
+import raydrench.entity;
 
-import std.string : startsWith, toStringz;
+import raydrench.player;
+import raydrench.projectiles;
+import raydrench.pickups;
+import raydrench.hud;
+import raydrench.debugdraw;
+
+import std.string : toStringz;
+import core.stdc.math : cosf, sinf;
 
 enum WINDOW_WIDTH = 1280;
 enum WINDOW_HEIGHT = 720;
@@ -24,19 +32,25 @@ void main(string[] args)
 
 	string mapPath = "test.map";
 	bool solid = false;
+	bool playerMode = false;
 
 	foreach (arg; args[1 .. $])
 	{
 		if (arg == "--solid")
-		{
 			solid = true;
-		}
+		else if (arg == "--player")
+			playerMode = true;
 		else
-		{
 			mapPath = arg;
-		}
 	}
+
+	if (playerMode)
+		solid = true;
+
 	fallbackTexture = LoadTexture("textures/__TB_empty.png");
+
+	registerEntity("info_player_start", &spawnPlayerStart);
+	registerEntity("item_health", &spawnHealthPack);
 
 	if (!loadMap(mapPath.toStringz))
 	{
@@ -45,40 +59,82 @@ void main(string[] args)
 	}
 
 	buildAllModels();
+	spawnAllEntities(g_scene.entities[0 .. g_scene.entityCount]);
+
+	loadMedkitModel();
 
 	Camera3D camera;
-	camera.position = Vector3(10.0f, 10.0f, 10.0f);
-	camera.target = Vector3(0.0f, 0.0f, 0.0f);
+	Vector3 startPos = g_havePlayerStart ? g_playerStartPos : Vector3(10.0f, 10.0f, 10.0f);
+	float startYaw = g_havePlayerStart ? g_playerStartYaw : 0.0f;
+
+	if (playerMode)
+		startPos = Vector3Add(startPos, Vector3(0, EYE_HEIGHT, 0));
+
+	camera.position = startPos;
+	Vector3 startForward = Vector3(sinf(startYaw), 0, -cosf(startYaw));
+	camera.target = Vector3Add(camera.position, startForward);
 	camera.up = Vector3(0.0f, 1.0f, 0.0f);
 	camera.fovy = 60.0f;
 	camera.projection = CameraProjection.CAMERA_PERSPECTIVE;
 
+	if (playerMode)
+		initPlayerPhysics(&camera, startYaw);
+
 	bool wireframe = false;
+	float medkitSpinAngle = 0.0f;
 
 	while (!WindowShouldClose())
 	{
 		if (!IsCursorHidden())
-		{
 			DisableCursor();
+
+		float dt = GetFrameTime();
+
+		if (playerMode)
+		{
+			updatePlayerPhysics(&camera, dt);
+
+			g_playerStartPos = camera.position;
+		}
+		else
+		{
+			updateCameraFree(&camera, dt);
+
+			if (solid)
+			{
+				Vector3 beforeResolve = camera.position;
+				resolvePlayerCollisions(&camera.position);
+				Vector3 correction = Vector3Subtract(camera.position, beforeResolve);
+				camera.target = Vector3Add(camera.target, correction);
+			}
+
+			g_playerStartPos = camera.position;
 		}
 
-		updateCameraFree(&camera, GetFrameTime());
+		medkitSpinAngle += dt * 90.0f;
+		if (medkitSpinAngle >= 360.0f) medkitSpinAngle -= 360.0f;
 
-		if (solid)
+		foreach (ref pk; g_pickups[0 .. g_pickupCount])
 		{
-			Vector3 beforeResolve = camera.position;
+			if (pk.collected) continue;
+			if (Vector3Distance(camera.position, pk.position) < 1.5f)
+			{
+				pk.collected = true;
+				g_playerHealth += pk.healAmount;
+				if (g_playerHealth > 100) g_playerHealth = 100;
+			}
+		}
 
-			resolvePlayerCollisions(&camera.position);
+		updateProjectiles(dt);
 
-			Vector3 correction = Vector3Subtract(camera.position, beforeResolve);
-
-			camera.target = Vector3Add(camera.target, correction);
+		if (playerMode && IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT))
+		{
+			Vector3 forward = Vector3Normalize(Vector3Subtract(camera.target, camera.position));
+			spawnProjectile(camera.position, forward);
 		}
 
 		if (IsKeyPressed(KeyboardKey.KEY_TAB))
-		{
 			wireframe = !wireframe;
-		}
 
 		BeginDrawing();
 		ClearBackground(Colors.BLACK);
@@ -90,93 +146,30 @@ void main(string[] args)
 		else
 			drawAllModels();
 
+		drawPickups(medkitSpinAngle);
+		drawProjectiles();
+
+		if (playerMode)
+			drawDebugRaycast(camera);
+
 		DrawGrid(60, 1.0f);
 
 		EndMode3D();
 
-		DrawFPS(10, 10);
+		if (playerMode)
+		{
+			drawHUD();
+		}
+		else
+		{
+			DrawFPS(10, 10);
+		}
 
 		EndDrawing();
 	}
 
+	unloadMedkitModel();
 	unloadAllModels();
 	unloadMap();
 	CloseWindow();
-}
-
-
-void updateCameraFree(Camera3D* camera, float dt)
-{
-	enum float MOVE_SPEED = 20.0f;
-	enum float MOUSE_SENSITIVITY = 0.003f;
-
-	Vector2 mouseDelta = GetMouseDelta();
-
-	Vector3 forward =
-		Vector3Normalize(
-			Vector3Subtract(camera.target, camera.position)
-		);
-
-	Vector3 right =
-		Vector3Normalize(
-			Vector3CrossProduct(forward, camera.up)
-		);
-
-	forward = Vector3RotateByAxisAngle(
-		forward,
-		camera.up,
-		-mouseDelta.x * MOUSE_SENSITIVITY
-	);
-
-	forward = Vector3RotateByAxisAngle(
-		forward,
-		right,
-		-mouseDelta.y * MOUSE_SENSITIVITY
-	);
-
-
-	camera.target = Vector3Add(camera.position, forward);
-
-
-	right =
-		Vector3Normalize(
-			Vector3CrossProduct(forward, camera.up)
-		);
-
-
-	float speed = MOVE_SPEED * dt;
-
-	if (IsKeyDown(KeyboardKey.KEY_LEFT_SHIFT))
-		speed *= 3.0f;
-
-	Vector3 move = Vector3Zero();
-
-	if (IsKeyDown(KeyboardKey.KEY_W))
-		move = Vector3Add(move, forward);
-
-	if (IsKeyDown(KeyboardKey.KEY_S))
-		move = Vector3Subtract(move, forward);
-
-	if (IsKeyDown(KeyboardKey.KEY_D))
-		move = Vector3Add(move, right);
-
-	if (IsKeyDown(KeyboardKey.KEY_A))
-		move = Vector3Subtract(move, right);
-
-	if (IsKeyDown(KeyboardKey.KEY_SPACE))
-		move = Vector3Add(move, camera.up);
-
-	if (IsKeyDown(KeyboardKey.KEY_LEFT_CONTROL))
-		move = Vector3Subtract(move, camera.up);
-
-	if (Vector3Length(move) > 0.0f)
-	{
-		move = Vector3Scale(
-			Vector3Normalize(move),
-			speed
-		);
-
-		camera.position = Vector3Add(camera.position, move);
-		camera.target = Vector3Add(camera.target, move);
-	}
 }

@@ -1,0 +1,20 @@
+// game.fgd
+@BaseClass color(255 128 0) size(-8 -8 -8, 8 8 8) = EntityBase
+[
+    targetname(string) : "Name" : "" : "The target name of this entity."
+]
+
+@PointClass base(EntityBase) model({ "path": ":textures/__TB_empty.png" }) = info_player_start : "Player spawn point"
+[
+    angles(string) : "Angles (P Y R)" : "0 0 0" : "Facing direction"
+]
+
+@PointClass base(EntityBase) = item_health : "Health pack"
+[
+    heal_amount(integer) : "Heal Amount" : 25 : "Amount of health to restore"
+]
+
+@SolidClass base(EntityBase) = func_door : "A brush-based sliding door"
+[
+    speed(integer) : "Move Speed" : 100 : "Speed at which the door opens"
+]
