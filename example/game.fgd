@@ -4,7 +4,7 @@
     targetname(string) : "Name" : "" : "The target name of this entity."
 ]
 
-@PointClass base(EntityBase) model({ "path": ":textures/__TB_empty.png" }) = info_player_start : "Player spawn point"
+@PointClass base(EntityBase) model({ "path": ":textures/tb/player_icon.png" }) = info_player_start : "Player spawn point"
 [
     angles(string) : "Angles (P Y R)" : "0 0 0" : "Facing direction"
 ]
@@ -17,4 +17,8 @@
 @SolidClass base(EntityBase) = func_door : "A brush-based sliding door"
 [
     speed(integer) : "Move Speed" : 100 : "Speed at which the door opens"
+]
+@PointClass base(EntityBase) model({ "path": ":textures/tb/skybox_icon.png" }) = env_skybox : "Skybox controller"
+[
+    texture(string) : "Cubemap texture" : "sky1" : "Name of the cubemap image under textures/skybox/"
 ]

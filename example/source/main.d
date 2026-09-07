@@ -10,6 +10,7 @@ import raydrench.entity;
 import raydrench.player;
 import raydrench.projectiles;
 import raydrench.pickups;
+import raydrench.skybox;
 import raydrench.hud;
 import raydrench.debugdraw;
 version(Android) import raydrench.androidinput;
@@ -67,6 +68,7 @@ void runGame(int argc, char** argv)
 	fallbackTexture = LoadTexture("textures/__TB_empty.png".ptr);
 	registerEntity("info_player_start", &spawnPlayerStart);
 	registerEntity("item_health", &spawnHealthPack);
+	registerEntity("env_skybox", &spawnSkybox);
 
 	if (!loadMap(mapPath))
 	{
@@ -74,6 +76,8 @@ void runGame(int argc, char** argv)
 		return;
 	}
 	buildAllModels();
+	spawnAllEntities(g_scene.entities[0 .. g_scene.entityCount]);
+	generateSkybox();
 
 	loadMedkitModel();
 
@@ -168,6 +172,8 @@ void runGame(int argc, char** argv)
 		BeginDrawing();
 		ClearBackground(Colors.BLACK);
 		BeginMode3D(camera);
+		drawSkybox(camera.position);
+
 		if (wireframe)
 			drawAllWireframes();
 		else

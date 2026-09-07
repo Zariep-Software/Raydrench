@@ -67,7 +67,7 @@ void loadMedkitModel()
 		TraceLog(TraceLogLevel.LOG_WARNING,
 			"medkit.obj loaded but no diffuse texture was bound (check medkit.mtl's map_Kd path)");
 
-		if (fileExists("models/medkit.png"))
+		if (FileExists("models/medkit.png"))
 		{
 			Texture2D fallback = LoadTexture("models/medkit.png");
 			if (fallback.id != 0)
