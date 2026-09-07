@@ -4,9 +4,6 @@ import raylib;
 
 import raydrench.entity;
 
-import std.string : toStringz;
-import std.file : exists;
-
 struct Pickup
 {
 	Vector3 position;
@@ -34,43 +31,53 @@ void spawnHealthPack(Entity* e)
 
 void loadMedkitModel()
 {
-	g_medkitModel = LoadModel("models/medkit.obj");
-	g_medkitModelLoaded = (g_medkitModel.meshCount > 0);
-
-	if (!g_medkitModelLoaded)
+	version(Android)
 	{
-		TraceLog(TraceLogLevel.LOG_WARNING, "Failed to load models/medkit.obj");
+		//TODO:FIXME
+		// raylib's OBJ/MTL loader is trying to do chdir() to resolve relative
+		// texture paths, even if i don't even use those textures
+		g_medkitModelLoaded = false;
 		return;
 	}
-
-	bool hasRealTexture = false;
-	foreach (i; 0 .. g_medkitModel.materialCount)
+	else
 	{
-		Texture2D tex = g_medkitModel.materials[i].maps[MaterialMapIndex.MATERIAL_MAP_ALBEDO].texture;
-		if (tex.id != 0)
+		g_medkitModel = LoadModel("models/medkit.obj");
+		g_medkitModelLoaded = (g_medkitModel.meshCount > 0);
+
+		if (!g_medkitModelLoaded)
 		{
-			hasRealTexture = true;
-			break;
+			TraceLog(TraceLogLevel.LOG_WARNING, "Failed to load models/medkit.obj");
+			return;
 		}
-	}
 
-	if (hasRealTexture)
-		return;
-
-	TraceLog(TraceLogLevel.LOG_WARNING,
-		"medkit.obj loaded but no diffuse texture was bound (check medkit.mtl's map_Kd path)");
-
-	// Best-effort fallback: look for models/medkit.png next to the obj.
-	if (exists("models/medkit.png"))
-	{
-		Texture2D fallback = LoadTexture("models/medkit.png");
-		if (fallback.id != 0)
+		bool hasRealTexture = false;
+		foreach (i; 0 .. g_medkitModel.materialCount)
 		{
-			foreach (i; 0 .. g_medkitModel.materialCount)
+			Texture2D tex = g_medkitModel.materials[i].maps[MaterialMapIndex.MATERIAL_MAP_ALBEDO].texture;
+			if (tex.id != 0)
 			{
-				SetMaterialTexture(&g_medkitModel.materials[i], MaterialMapIndex.MATERIAL_MAP_ALBEDO, fallback);
+				hasRealTexture = true;
+				break;
 			}
-			TraceLog(TraceLogLevel.LOG_INFO, "Applied fallback texture models/medkit.png to medkit model");
+		}
+
+		if (hasRealTexture)
+			return;
+
+		TraceLog(TraceLogLevel.LOG_WARNING,
+			"medkit.obj loaded but no diffuse texture was bound (check medkit.mtl's map_Kd path)");
+
+		if (fileExists("models/medkit.png"))
+		{
+			Texture2D fallback = LoadTexture("models/medkit.png");
+			if (fallback.id != 0)
+			{
+				foreach (i; 0 .. g_medkitModel.materialCount)
+				{
+					SetMaterialTexture(&g_medkitModel.materials[i], MaterialMapIndex.MATERIAL_MAP_ALBEDO, fallback);
+				}
+				TraceLog(TraceLogLevel.LOG_INFO, "Applied fallback texture models/medkit.png to medkit model");
+			}
 		}
 	}
 }

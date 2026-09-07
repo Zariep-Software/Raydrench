@@ -1,0 +1,3 @@
+[submodule "example/build/android/abuild"]
+	path = example/build/android/abuild
+	url = https://github.com/zariep-software/raylib-d-android-template.git

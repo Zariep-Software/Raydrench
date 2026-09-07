@@ -30,10 +30,18 @@ private Texture2D loadFromDisk(const(char)* name)
 	foreach (ext; supportedExtensions)
 	{
 		snprintf(path.ptr, path.length, "textures/%s.%s", name, ext);
-		if (!FileExists(path.ptr)) continue;
 
-		Texture2D tex = LoadTexture(path.ptr);
-		if (tex.id != 0) return tex;
+		version(Android)
+		{
+			Texture2D tex = LoadTexture(path.ptr);
+			if (tex.id != 0) return tex;
+		}
+		else
+		{
+			if (!FileExists(path.ptr)) continue;
+			Texture2D tex = LoadTexture(path.ptr);
+			if (tex.id != 0) return tex;
+		}
 	}
 	Texture2D none; none.id = 0;
 	return none;

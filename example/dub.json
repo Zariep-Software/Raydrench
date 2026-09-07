@@ -18,14 +18,25 @@
 	"sourcePaths": [
 		"source"
 	],
-	"mainSourceFile": "source/app.d",
-	"buildTypes": {
-		"release": {
-			"buildOptions": [
-				"releaseMode",
-				"optimize",
-				"inline"
+	"configurations": [
+		{
+			"name": "desktop",
+			"targetType": "executable",
+				"libs": [
+				"raylib"
 			]
+		},
+		{
+			"name": "android",
+			"targetType": "dynamicLibrary",
+			"targetName": "main",
+			"dependencies": {
+				"raylib-d": "~>6.0.1"
+			},
+			"subConfigurations": {
+				"raylib-d": "library"
+			},
+			"libs-posix": []
 		}
-	}
+	]
 }

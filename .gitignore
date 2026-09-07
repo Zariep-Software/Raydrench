@@ -1,3 +1,10 @@
 *.a
+*.so
 *.selections.json
 raydrench-example
+example/build/android/android/app/src/main/assets
+example/build/android/android/app/build
+example/build/android/android/app/src/main/jniLibs
+example/build/android/android/.gradle
+example/build/android/android/gradle
+example/build/android/android/build

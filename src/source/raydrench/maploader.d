@@ -123,13 +123,15 @@ bool loadMap(const(char)* filename)
 	char[256] fullPath;
 	snprintf(fullPath.ptr, fullPath.length, "maps/%s", filename);
 
-	FILE* file = fopen(fullPath.ptr, "r");
-	if (!file)
+	char* fileText = LoadFileText(fullPath.ptr);
+	if (fileText is null)
 	{
-		perror("Failed to open .map file");
+		printf("Failed to open .map file: %s\n", fullPath.ptr);
 		printf("Tried searching in: %s\n", fullPath.ptr);
 		return false;
 	}
+	scope(exit) UnloadFileText(fileText);
+
 	printf("Loading map: %s\n", fullPath.ptr);
 
 	char[MAX_LINE_LEN] lineBuf;
@@ -138,8 +140,19 @@ bool loadMap(const(char)* filename)
 	Entity* currentEntity = null;
 	Brush currentBrush;
 
-	while (fgets(lineBuf.ptr, MAX_LINE_LEN, file) !is null)
+	char* p = fileText;
+
+	while (*p != '\0')
 	{
+		// Copy one line (up to '\n' or buffer limit) into lineBuf
+		size_t i = 0;
+		while (*p != '\0' && *p != '\n' && i < MAX_LINE_LEN - 1)
+		{
+			lineBuf[i++] = *p++;
+		}
+		lineBuf[i] = '\0';
+		if (*p == '\n') p++;
+
 		char* t = trimLine(lineBuf.ptr);
 		if (t[0] == '\0') continue;
 		if (t[0] == '/' && t[1] == '/') continue; // comment
@@ -208,7 +221,6 @@ bool loadMap(const(char)* filename)
 				printf("!!! Failed to parse brush face: %s\n", t);
 		}
 	}
-	fclose(file);
 
 	printf("Loaded %i entities, %i brushes\n", g_scene.entityCount, g_scene.totalBrushCount);
 	return true;

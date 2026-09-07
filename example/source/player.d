@@ -6,6 +6,8 @@ import raylib.raymath;
 import raydrench.collision;
 import raydrench.entity;
 
+version(Android) import raydrench.androidinput;
+
 import core.stdc.stdlib : strtof;
 import core.stdc.math : cosf, sinf;
 
@@ -51,10 +53,40 @@ void initPlayerPhysics(Camera3D* camera, float startYaw)
 
 void updatePlayerPhysics(Camera3D* camera, float dt)
 {
-	Vector2 mouseDelta = GetMouseDelta();
+	Vector2 lookDelta;
+	Vector2 moveAxis;
+	bool runHeld;
+	bool jumpPressed;
+	bool jumpHeld;
 
-	g_playerYaw += mouseDelta.x * MOUSE_SENSITIVITY;
-	g_playerPitch -= mouseDelta.y * MOUSE_SENSITIVITY;
+	version(Android)
+	{
+		lookDelta = Vector2(
+			g_androidInput.lookDelta.x / MOUSE_SENSITIVITY,
+			g_androidInput.lookDelta.y / MOUSE_SENSITIVITY
+		);
+		moveAxis = Vector2(g_androidInput.moveDir.x, g_androidInput.moveDir.y);
+		runHeld = false;
+		jumpPressed = g_androidInput.jumpPressed;
+		jumpHeld = g_androidInput.jumpHeld;
+	}
+	else
+	{
+		Vector2 mouseDelta = GetMouseDelta();
+		lookDelta = mouseDelta;
+
+		moveAxis = Vector2(
+			(IsKeyDown(KeyboardKey.KEY_D) ? 1.0f : 0.0f) - (IsKeyDown(KeyboardKey.KEY_A) ? 1.0f : 0.0f),
+			(IsKeyDown(KeyboardKey.KEY_S) ? 1.0f : 0.0f) - (IsKeyDown(KeyboardKey.KEY_W) ? 1.0f : 0.0f)
+		);
+
+		runHeld = IsKeyDown(KeyboardKey.KEY_LEFT_SHIFT);
+		jumpPressed = IsKeyPressed(KeyboardKey.KEY_SPACE);
+		jumpHeld = IsKeyDown(KeyboardKey.KEY_SPACE);
+	}
+
+	g_playerYaw += lookDelta.x * MOUSE_SENSITIVITY;
+	g_playerPitch -= lookDelta.y * MOUSE_SENSITIVITY;
 
 	enum float PITCH_LIMIT = 1.5f;
 	if (g_playerPitch > PITCH_LIMIT) g_playerPitch = PITCH_LIMIT;
@@ -70,29 +102,28 @@ void updatePlayerPhysics(Camera3D* camera, float dt)
 	Vector3 flatRight = Vector3Normalize(Vector3CrossProduct(flatForward, Vector3(0, 1, 0)));
 
 	float speed = WALK_SPEED;
-	if (IsKeyDown(KeyboardKey.KEY_LEFT_SHIFT))
+	if (runHeld)
 		speed *= RUN_MULTIPLIER;
 
 	Vector3 move = Vector3Zero();
 
-	if (IsKeyDown(KeyboardKey.KEY_W))
-		move = Vector3Add(move, flatForward);
-	if (IsKeyDown(KeyboardKey.KEY_S))
-		move = Vector3Subtract(move, flatForward);
-	if (IsKeyDown(KeyboardKey.KEY_D))
-		move = Vector3Add(move, flatRight);
-	if (IsKeyDown(KeyboardKey.KEY_A))
-		move = Vector3Subtract(move, flatRight);
+	move = Vector3Add(move, Vector3Scale(flatForward, -moveAxis.y));
+	move = Vector3Add(move, Vector3Scale(flatRight, moveAxis.x));
 
 	if (Vector3Length(move) > 0.0f)
-		move = Vector3Scale(Vector3Normalize(move), speed * dt);
+	{
+		float mag = Vector3Length(move);
+		if (mag > 1.0f)
+			move = Vector3Scale(move, 1.0f / mag);
+		move = Vector3Scale(move, speed * dt);
+	}
 
-	if ((IsKeyDown(KeyboardKey.KEY_LEFT_CONTROL) || IsKeyDown(KeyboardKey.KEY_RIGHT_CONTROL)) && IsKeyDown(KeyboardKey.KEY_SPACE))
+	if ((IsKeyDown(KeyboardKey.KEY_LEFT_CONTROL) || IsKeyDown(KeyboardKey.KEY_RIGHT_CONTROL)) && jumpHeld)
 	{
 		g_playerVerticalVelocity = JUMP_SPEED;
 		g_playerGrounded = false;
 	}
-	else if (g_playerGrounded && IsKeyPressed(KeyboardKey.KEY_SPACE))
+	else if (g_playerGrounded && jumpPressed)
 	{
 		g_playerVerticalVelocity = JUMP_SPEED;
 		g_playerGrounded = false;
